@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  amrioxwa:
+    build: .
+    container_name: amrioxwa
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      REDIS_URL: redis://redis:6379
+      SESSION_DIR: /app/sessions
+      SESSION_MAX_RECONNECT_ATTEMPTS: ${SESSION_MAX_RECONNECT_ATTEMPTS:-10}
+      SESSION_HEALTH_CHECK_INTERVAL: ${SESSION_HEALTH_CHECK_INTERVAL:-60000}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-10000}
+      WEBHOOK_MAX_RETRIES: ${WEBHOOK_MAX_RETRIES:-5}
+      QUEUE_MESSAGE_RATE_LIMIT: ${QUEUE_MESSAGE_RATE_LIMIT:-20}
+      QUEUE_CONCURRENCY: ${QUEUE_CONCURRENCY:-1}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-200}
+      ADMIN_ENABLED: ${ADMIN_ENABLED:-false}
+      ADMIN_KEY: ${ADMIN_KEY:-}
+    volumes:
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - amrioxwa_net
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: amrioxwa_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - amrioxwa_net
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:
+
+networks:
+  amrioxwa_net:
+    driver: bridge
