@@ -6,13 +6,14 @@ RUN apk upgrade --no-cache && \
     python3 \
     make \
     g++ \
-    curl
+    curl \
+    git
 
 WORKDIR /app
 
 # Install production dependencies (--omit=dev replaces deprecated --only=production)
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy application code
 COPY . .
