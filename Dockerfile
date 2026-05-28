@@ -1,7 +1,8 @@
-FROM node:20-alpine
+FROM node:20-alpine3.21
 
-# Install dependencies for Baileys (sharp, canvas)
-RUN apk add --no-cache \
+# Apply latest OS security patches, then install build tools + curl for healthcheck
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     python3 \
     make \
     g++ \
@@ -9,9 +10,9 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Install dependencies first (better layer caching)
+# Install production dependencies (--omit=dev replaces deprecated --only=production)
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy application code
 COPY . .
@@ -26,6 +27,6 @@ USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/api/v1/health || exit 1
+  CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "src/app.js"]
