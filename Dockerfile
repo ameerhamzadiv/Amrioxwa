@@ -19,10 +19,10 @@ RUN npm install --omit=dev && npm cache clean --force
 COPY . .
 
 # Create required directories
-RUN mkdir -p sessions logs
+RUN mkdir -p sessions logs && \
+    chown -R node:node /app && \
+    chmod -R 775 sessions logs
 
-# Run as non-root user
-RUN chown -R node:node /app
 USER node
 
 EXPOSE 3000
