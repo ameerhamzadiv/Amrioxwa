@@ -32,7 +32,11 @@ class HealthMonitor {
       for (const meta of sessions) {
         if (meta.state === SESSION_STATES.CONNECTED) {
           const sock = this._sessionManager._sessions.get(meta.sessionId);
-          if (!sock || sock.ws?.readyState !== 1) {
+          // Only flag as dead when the socket object is gone entirely.
+          // Baileys removes it from _sessions inside connection.update('close'),
+          // so if it's still in the map the socket is alive.
+          // Never rely on sock.ws?.readyState — Baileys abstracts the WS internally.
+          if (!sock) {
             logger.warn('Health check detected dead session socket', { sessionId: meta.sessionId });
             await sessionStore.updateState(meta.sessionId, SESSION_STATES.DISCONNECTED, {
               disconnectReason: 'health_check_detected',

@@ -8,7 +8,14 @@ const createSessionSchema = Joi.object({
   // Laravel sends `name`; native clients may send `sessionId` — accept both
   name:      sessionIdField.optional(),
   sessionId: sessionIdField.optional(),
-  config:    Joi.object().optional(),
+  // PHP json_encode([]) produces [] not {} — accept either
+  config: Joi.alternatives().try(
+  Joi.object(),
+  Joi.array()
+).custom((value) => {
+  if (Array.isArray(value)) return {};
+  return value || {};
+}).optional(),
 }).or('name', 'sessionId');
 
 const sendMessageSchema = Joi.object({

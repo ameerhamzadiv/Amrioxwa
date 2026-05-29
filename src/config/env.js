@@ -41,8 +41,9 @@ module.exports = {
   },
 
   webhook: {
-    url: process.env.WEBHOOK_URL,
-    secret: process.env.WEBHOOK_SECRET,
+    enabled: process.env.WEBHOOK_ENABLED === 'true',
+    url: process.env.WEBHOOK_URL || '',
+    secret: process.env.WEBHOOK_SECRET || '',
     timeout: parseInt(process.env.WEBHOOK_TIMEOUT, 10) || 10000,
     maxRetries: parseInt(process.env.WEBHOOK_MAX_RETRIES, 10) || 5,
   },

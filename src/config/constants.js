@@ -46,7 +46,7 @@ const INTERNAL_EVENTS = {
 };
 
 const QUEUE_NAMES = {
-  messages: (sessionId) => `messages:${sessionId}`,
+  messages: (sessionId) => `messages-${sessionId}`,
   WEBHOOKS: 'webhooks',
 };
 

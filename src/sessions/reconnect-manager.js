@@ -31,6 +31,7 @@ class ReconnectManager {
       DISCONNECT_REASONS.LOGOUT,
       DISCONNECT_REASONS.FORBIDDEN,
       DISCONNECT_REASONS.BAD_SESSION,
+      DISCONNECT_REASONS.CONFLICT,
     ].includes(reason);
   }
 

@@ -7,6 +7,8 @@ const { getWebhookQueue } = require('../queues/queue-factory');
 
 class WebhookService {
   async send(event, sessionId, data) {
+    if (!env.webhook.enabled) return;
+
     const payload = {
       event,
       sessionId,

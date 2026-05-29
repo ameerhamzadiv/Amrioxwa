@@ -12,6 +12,22 @@ const sessionStore = require('./session-store');
 const reconnectManager = require('./reconnect-manager');
 const { Errors } = require('../utils/errors');
 
+// Baileys requires a Pino-style logger (trace/debug/info/warn/error/fatal + child).
+// Winston has no `trace` or `fatal` — wrap it into a compatible adapter.
+function makeBaileysLogger(bindings) {
+  const child = logger.child(bindings);
+  return {
+    level: 'silent',
+    trace: (...a) => child.silly(...a),
+    debug: (...a) => child.debug(...a),
+    info:  (...a) => child.info(...a),
+    warn:  (...a) => child.warn(...a),
+    error: (...a) => child.error(...a),
+    fatal: (...a) => child.error(...a),
+    child: (b)   => makeBaileysLogger({ ...bindings, ...b }),
+  };
+}
+
 class SessionManager extends EventEmitter {
   constructor() {
     super();
@@ -20,7 +36,30 @@ class SessionManager extends EventEmitter {
 
   async initialize() {
     logger.info('Restoring sessions from storage');
+
     const stored = await sessionStore.getAll();
+    const knownIds = new Set(stored.map((s) => s.sessionId));
+
+    // Scan sessions dir for auth files not in Redis (after migration / Redis wipe).
+    // Any folder with auth_info/creds.json is a valid session — register it automatically.
+    try {
+      const entries = fs.readdirSync(env.session.dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || knownIds.has(entry.name)) continue;
+        const credsPath = path.join(env.session.dir, entry.name, 'auth_info', 'creds.json');
+        if (!fs.existsSync(credsPath)) continue;
+        logger.info('Found auth files without Redis record — registering', { sessionId: entry.name });
+        await sessionStore.save(entry.name, {
+          sessionId: entry.name,
+          state:     SESSION_STATES.INITIALIZING,
+          createdAt: Date.now(),
+        });
+        stored.push({ sessionId: entry.name, state: SESSION_STATES.INITIALIZING });
+      }
+    } catch (err) {
+      logger.warn('Could not scan session directory', { error: err.message });
+    }
+
     let restored = 0;
     for (const meta of stored) {
       if (meta.state !== SESSION_STATES.TERMINATED) {
@@ -36,8 +75,22 @@ class SessionManager extends EventEmitter {
   }
 
   async createSession(sessionId) {
-    if (this._sessions.has(sessionId) || (await sessionStore.exists(sessionId))) {
+    // Live socket exists — truly active, reject
+    if (this._sessions.has(sessionId)) {
       throw Errors.sessionExists(sessionId);
+    }
+
+    // Stale Redis record may exist after logout due to async connection.update
+    // firing after sessionStore.remove(). Clean it up if session is dead.
+    const existing = await sessionStore.get(sessionId);
+    if (existing) {
+      const deadStates = [SESSION_STATES.TERMINATED, SESSION_STATES.DISCONNECTED, SESSION_STATES.FAILED];
+      if (deadStates.includes(existing.state)) {
+        await this._deleteAuthFiles(sessionId);
+        await sessionStore.remove(sessionId);
+      } else {
+        throw Errors.sessionExists(sessionId);
+      }
     }
 
     await sessionStore.save(sessionId, {
@@ -133,7 +186,7 @@ class SessionManager extends EventEmitter {
       version,
       auth: state,
       printQRInTerminal: false,
-      logger: logger.child({ sessionId, component: 'baileys' }),
+      logger: makeBaileysLogger({ sessionId, component: 'baileys' }),
       generateHighQualityLinkPreview: false,
       syncFullHistory: false,
     });

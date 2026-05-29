@@ -1,6 +1,7 @@
 'use strict';
 
 const { randomUUID } = require('crypto');
+const QRCode = require('qrcode');
 const sessionManager = require('../sessions/session-manager');
 const messageService = require('../services/message.service');
 const { isValidPhone, toJid } = require('../utils/phone');
@@ -84,9 +85,10 @@ async function getSession(req, res, next) {
 
 async function getQr(req, res, next) {
   try {
-    const qr = await sessionManager.getQr(req.params.sessionId);
-    // Both `qr` (native) and `qrCode` (Laravel compat)
-    res.json({ qr, qrCode: qr });
+    const raw = await sessionManager.getQr(req.params.sessionId);
+    // Convert raw Baileys QR string → base64 PNG data URL for the frontend
+    const dataUrl = await QRCode.toDataURL(raw);
+    res.json({ qr: dataUrl, qrCode: dataUrl });
   } catch (err) {
     next(err);
   }
