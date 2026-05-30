@@ -134,7 +134,7 @@ async function startSession(req, res, next) {
 
 async function stopSession(req, res, next) {
   try {
-    await sessionManager.logoutSession(req.params.sessionId);
+    await sessionManager.stopSession(req.params.sessionId);
     res.json({ message: 'Session stopped' });
   } catch (err) {
     next(err);

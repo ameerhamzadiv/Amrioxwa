@@ -32,6 +32,7 @@ class SessionManager extends EventEmitter {
   constructor() {
     super();
     this._sessions = new Map();
+    this._intentionalStops = new Set(); // sessions stopped on purpose — skip auto-reconnect
   }
 
   async initialize() {
@@ -130,6 +131,28 @@ class SessionManager extends EventEmitter {
     logger.info('Session terminated', { sessionId });
   }
 
+  // Disconnect without unlinking the device — auth files & Redis record are kept,
+  // so the session can be restarted later WITHOUT scanning a QR code again.
+  async stopSession(sessionId) {
+    const meta = await sessionStore.get(sessionId);
+    if (!meta) throw Errors.sessionNotFound(sessionId);
+
+    reconnectManager.cancelReconnect(sessionId);
+    this._intentionalStops.add(sessionId); // tell close handler not to reconnect
+
+    const sock = this._sessions.get(sessionId);
+    if (sock) {
+      try { sock.end(); } catch (_) {} // close socket only — NO sock.logout()
+      this._sessions.delete(sessionId);
+    }
+
+    await sessionStore.updateState(sessionId, SESSION_STATES.DISCONNECTED, {
+      disconnectReason: 'manual_stop',
+      disconnectedAt: Date.now(),
+    });
+    logger.info('Session stopped — auth retained', { sessionId });
+  }
+
   async restartSession(sessionId) {
     const meta = await sessionStore.get(sessionId);
     if (!meta) throw Errors.sessionNotFound(sessionId);
@@ -176,6 +199,9 @@ class SessionManager extends EventEmitter {
   }
 
   async _createSocket(sessionId) {
+    // Re-activating a session — clear any pending intentional-stop flag.
+    this._intentionalStops.delete(sessionId);
+
     const authDir = this._authDir(sessionId);
     fs.mkdirSync(authDir, { recursive: true });
 
@@ -250,6 +276,14 @@ class SessionManager extends EventEmitter {
     }
 
     if (connection === 'close') {
+      // Intentional stop — socket was closed by stopSession(). Don't reconnect.
+      if (this._intentionalStops.has(sessionId)) {
+        this._intentionalStops.delete(sessionId);
+        this._sessions.delete(sessionId);
+        logger.info('Session closed by manual stop — not reconnecting', { sessionId });
+        return;
+      }
+
       const reason = reconnectManager.classifyReason(lastDisconnect);
       const shouldReconnect = reconnectManager.shouldReconnect(reason);
 
