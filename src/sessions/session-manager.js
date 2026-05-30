@@ -189,6 +189,10 @@ class SessionManager extends EventEmitter {
       logger: makeBaileysLogger({ sessionId, component: 'baileys' }),
       generateHighQualityLinkPreview: false,
       syncFullHistory: false,
+      shouldSyncHistoryMessage: () => false,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
+      retryRequestDelayMs: 2000,
     });
 
     this._sessions.set(sessionId, sock);

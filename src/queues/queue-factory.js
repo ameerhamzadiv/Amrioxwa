@@ -17,10 +17,10 @@ function getMessageQueue(sessionId) {
     const queue = new Queue(name, {
       connection: getConnection(),
       defaultJobOptions: {
-        attempts: 3,
+        attempts: 8,
         backoff: {
           type: 'exponential',
-          delay: 2000,
+          delay: 5000, // retries at 5s, 10s, 20s, 40s, 80s, 160s, 320s
         },
         removeOnComplete: { count: 1000, age: 86400 },
         removeOnFail: { count: 500, age: 604800 },
