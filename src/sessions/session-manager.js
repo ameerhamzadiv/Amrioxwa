@@ -193,6 +193,7 @@ class SessionManager extends EventEmitter {
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       retryRequestDelayMs: 2000,
+      defaultQueryTimeoutMs: 30000, // fetchProps gets 30s instead of default 3s
     });
 
     this._sessions.set(sessionId, sock);

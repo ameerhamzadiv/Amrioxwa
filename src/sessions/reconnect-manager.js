@@ -13,15 +13,17 @@ class ReconnectManager {
 
   classifyReason(lastDisconnect) {
     const statusCode = lastDisconnect?.error?.output?.statusCode;
-    const message = lastDisconnect?.error?.message || '';
+    const message    = (lastDisconnect?.error?.message || '').toLowerCase();
+    const dataMsg    = (lastDisconnect?.error?.data?.message || '').toLowerCase();
 
-    if (statusCode === 401) return DISCONNECT_REASONS.LOGOUT;
-    if (statusCode === 403) return DISCONNECT_REASONS.FORBIDDEN;
-    if (statusCode === 408) return DISCONNECT_REASONS.TIMEDOUT;
-    if (statusCode === 409) return DISCONNECT_REASONS.CONFLICT;
-    if (statusCode === 411) return DISCONNECT_REASONS.BAD_SESSION;
-    if (message.includes('restart required')) return DISCONNECT_REASONS.RESTART_REQUIRED;
-    if (message.includes('Connection lost')) return DISCONNECT_REASONS.CONNECTION_LOST;
+    if (statusCode === 401 || message.includes('logged out'))        return DISCONNECT_REASONS.LOGOUT;
+    if (statusCode === 403)                                           return DISCONNECT_REASONS.FORBIDDEN;
+    if (statusCode === 411)                                           return DISCONNECT_REASONS.BAD_SESSION;
+    // Conflict: Baileys sends "Stream Errored (conflict)" via stream:error — statusCode is NOT 409
+    if (statusCode === 409 || message.includes('conflict') || dataMsg.includes('conflict')) return DISCONNECT_REASONS.CONFLICT;
+    if (statusCode === 408 || message.includes('timed out'))         return DISCONNECT_REASONS.TIMEDOUT;
+    if (message.includes('restart required'))                        return DISCONNECT_REASONS.RESTART_REQUIRED;
+    if (message.includes('connection lost'))                         return DISCONNECT_REASONS.CONNECTION_LOST;
 
     return DISCONNECT_REASONS.CONNECTION_FAILURE;
   }
