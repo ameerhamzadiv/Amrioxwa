@@ -257,6 +257,10 @@ class SessionManager extends EventEmitter {
     }
 
     if (connection === 'open') {
+      // Ignore events from a socket that has already been replaced by a newer one.
+      if (this._sessions.get(sessionId) && this._sessions.get(sessionId) !== sock) {
+        return;
+      }
       const phone = sock.user?.id?.split(':')[0] || '';
       const name = sock.user?.name || '';
       await sessionStore.updateState(sessionId, SESSION_STATES.CONNECTED, {
@@ -281,6 +285,15 @@ class SessionManager extends EventEmitter {
         this._intentionalStops.delete(sessionId);
         this._sessions.delete(sessionId);
         logger.info('Session closed by manual stop — not reconnecting', { sessionId });
+        return;
+      }
+
+      // Stale-socket guard: if a newer socket has already replaced this one
+      // (restart/reconnect), ignore this old socket's close so it doesn't
+      // delete the live socket or trigger a duplicate reconnect.
+      const current = this._sessions.get(sessionId);
+      if (current !== sock) {
+        logger.debug('Ignoring close from replaced/stale socket', { sessionId });
         return;
       }
 

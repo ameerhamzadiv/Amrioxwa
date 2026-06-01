@@ -32,16 +32,20 @@ class HealthMonitor {
       for (const meta of sessions) {
         if (meta.state === SESSION_STATES.CONNECTED) {
           const sock = this._sessionManager._sessions.get(meta.sessionId);
-          // Only flag as dead when the socket object is gone entirely.
-          // Baileys removes it from _sessions inside connection.update('close'),
-          // so if it's still in the map the socket is alive.
+          // Redis says CONNECTED but there's no live socket — self-heal by
+          // restoring the socket instead of abandoning the session.
           // Never rely on sock.ws?.readyState — Baileys abstracts the WS internally.
           if (!sock) {
-            logger.warn('Health check detected dead session socket', { sessionId: meta.sessionId });
-            await sessionStore.updateState(meta.sessionId, SESSION_STATES.DISCONNECTED, {
-              disconnectReason: 'health_check_detected',
-              disconnectedAt: Date.now(),
-            });
+            logger.warn('Health check: connected session missing live socket — restoring', { sessionId: meta.sessionId });
+            try {
+              await this._sessionManager.restartSession(meta.sessionId);
+            } catch (err) {
+              logger.error('Health check restore failed', { sessionId: meta.sessionId, error: err.message });
+              await sessionStore.updateState(meta.sessionId, SESSION_STATES.DISCONNECTED, {
+                disconnectReason: 'health_check_failed',
+                disconnectedAt: Date.now(),
+              });
+            }
           }
         }
       }
